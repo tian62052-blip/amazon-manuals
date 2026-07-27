@@ -1,0 +1,19 @@
+# 不上传为静态资源的文件（gitignore 语法）。
+# Workers 的 assets.directory 指向仓库根目录，默认会把整个仓库
+# 上传，包括 .git 内部文件——必须显式排除。
+#
+# 注意：不要在这里排除 _headers 和 _redirects。
+# 它们由 Workers 解析生效，且本身不会被当作资源对外提供。
+
+# Git 仓库内部文件
+.git
+.gitignore
+.assetsignore
+
+# 部署配置
+wrangler.jsonc
+
+# 内部文档与工具，不对买家公开
+README.md
+tools
+archive
