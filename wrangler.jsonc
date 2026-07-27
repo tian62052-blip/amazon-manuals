@@ -1,0 +1,18 @@
+{
+  // Workers 静态资源部署配置。
+  // Pages 不需要这个文件，Workers 从 Git 部署时必须有，
+  // 否则 `npx wrangler deploy` 找不到入口会直接失败。
+  //
+  // name 决定最终地址：https://<name>.<账号子域>.workers.dev
+  // 这个地址要印在包装二维码上，改名等于二维码作废。
+  "name": "windin",
+
+  "compatibility_date": "2026-07-27",
+
+  // 纯静态站点：没有 main 入口脚本，只有资源目录。
+  // directory 指向仓库根目录，_headers 和 _redirects 会被
+  // Workers 解析生效，且这两个文件本身不会被当作资源对外提供。
+  "assets": {
+    "directory": "./"
+  }
+}
