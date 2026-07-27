@@ -1,0 +1,24 @@
+# Cloudflare Pages 响应头规则
+# 规则从上到下匹配，后面的会覆盖前面的同名头。
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  X-Frame-Options: SAMEORIGIN
+
+# 落地页：缓存 10 分钟，改文案后很快生效
+/b03/*
+  Cache-Control: public, max-age=600
+
+# PDF：这是关键的两行
+#   Content-Disposition: inline  -> 手机浏览器直接打开，不弹"下载"框
+#   max-age=3600                 -> 换了说明书最多 1 小时全网生效
+#                                   （对比 jsDelivr 的浏览器缓存 7 天）
+/*.pdf
+  Content-Type: application/pdf
+  Content-Disposition: inline
+  Cache-Control: public, max-age=3600, must-revalidate
+
+# 归档旧版本：内容永不变，可以长缓存
+/archive/*
+  Cache-Control: public, max-age=2592000, immutable
