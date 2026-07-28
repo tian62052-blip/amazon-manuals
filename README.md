@@ -117,56 +117,90 @@ Listing 重新上传后 Amazon 会生成新的 `m.media-amazon.com` 地址，
 
 ## PDF 处理规矩（换新说明书时必看）
 
-### 绝对不要用 Ghostscript 的 `-dFastWebView`
+> **一句话：不要压缩说明书。** 源稿直接用，只做无损结构整理。
+> 2026-07-28 因为压缩连续出了两个问题，教训写在下面。
 
-2026-07-28 的线上事故就是它造成的：iPhone 扫码打开说明书，**第 3 页重复出现两次**。
+### 第一条：绝对不要重采样图片
 
-起因是压缩说明书时加了 `-dFastWebView=true`（线性化）。线性化会在文件里写一张
-hint 表，告诉阅读器"第 N 页在第几个字节"，供边下边看。**Ghostscript 生成的这张表
-是不合法的**，而 Safari / iOS PDFKit 会信这张表并照着跳字节位置，跳错就渲染出
-重复页；PyMuPDF、Chrome 不读这张表，所以本地怎么查都是好的——这是它极难被发现的原因。
+2026-07-28 买家反馈第 6 页插图背景出现一片脏斑、整体发糊。原因是当时用
+Ghostscript 压缩时带了 `-dColorImageResolution=150`，把图片降到 150dpi 并重新
+JPEG 编码。降的幅度非常离谱：
 
-排查时的关键判据（当时全部成立）：
+| 页 | 原图 | 压缩后 |
+|---|---|---|
+| p3 | 3938×1056 | 787×211 |
+| p5 | 2048×2048 | **58×58** |
+| p6 | 2048×2048 | **60×60** |
+| p6 | 1920×1870 | 640×623 |
 
-| 检查项 | 结果 |
-|---|---|
-| 线上文件 vs 本地 sha256 | 完全一致（说明不是传错文件） |
-| 8 页文字 md5 | 各不相同（说明文件里没有重复页） |
-| `pikepdf.Pdf.check_linearization()` | **False ← 真凶** |
-| 同内容用 qpdf 重新线性化后再校验 | True |
+背景那片脏斑就是 JPEG 块效应，原图那里是纯白。
 
-结论：**这个站点不需要线性化。** 服务端（Cloudflare Workers 静态资源）根本不支持
-Range 分段请求（无 `Accept-Ranges`，请求分段返回的是 200 + 整个文件），
-线性化在这里一点作用都没有，纯粹是白背一个会出错的包袱。
+**这份说明书全是线条插图（line art），最忌讳有损重编码。**
+禁止使用的参数：`-dPDFSETTINGS`、`-dColorImageResolution`、
+`-dGrayImageResolution`、`-dDownsampleColorImages` 及任何同类重采样开关。
+
+源稿 1.4MB，无损处理后约 1.17MB，对手机完全没有压力，没有任何压缩的必要。
+
+### 第二条：绝对不要用 `-dFastWebView`
+
+同一次压缩还带了 `-dFastWebView=true`（线性化）。它会在文件里写一张 hint 表，
+告诉阅读器"第 N 页在第几字节"，供边下边看。**Ghostscript 生成的这张表不合法**
+（`pikepdf.Pdf.check_linearization()` 返回 False）。
+
+Safari / iOS PDFKit 会读这张表，PyMuPDF、Chrome 不读——所以本地怎么查都是好的。
+当时有买家反馈 iPhone 上第 3 页重复出现两次，怀疑与此有关，但**未能确证**：
+Listing 上那份（Amazon 托管）同样 `check_linearization()` 为 False 却显示正常，
+说明表不合法并不必然导致错页。
+
+不管是不是它，**这个站点都不需要线性化**：服务端（Cloudflare Workers 静态资源）
+根本不支持 Range 分段请求（无 `Accept-Ranges`，请求分段返回的是 200 + 整个文件），
+线性化在这里毫无作用，纯粹是白背一个可能出错的包袱。
 
 ### 换说明书时的标准动作
 
 ```bash
-pip install pikepdf pymupdf
+pip install pikepdf pymupdf numpy
 
 python - <<'PY'
-import pikepdf, fitz
-SRC, DST = "新说明书.pdf", "B03-user-manual.pdf"
+import pikepdf, fitz, numpy as np, hashlib
+SRC, DST = "B03新说明书.pdf", "B03-user-manual.pdf"
 
-# 去线性化 + 重整结构（不重新压缩图片，内容零改动）
+# 只做无损处理：去线性化 + 内容流 flate + 对象流合并。
+# 没有任何重采样/重编码参数 —— 图片数据原封不动搬过去。
 p = pikepdf.open(SRC)
-p.save(DST, linearize=False,
+p.save(DST, linearize=False, compress_streams=True,
        object_stream_mode=pikepdf.ObjectStreamMode.generate)
 p.close()
 
-# 必须过的三道检查
-f = pikepdf.open(DST)
-assert not f.is_linearized, "还带着线性化，Safari 会出错页"
+assert not pikepdf.open(DST).is_linearized, "还带着线性化"
 
 a, b = fitz.open(SRC), fitz.open(DST)
 assert a.page_count == b.page_count
+
+# 图片必须逐字节一致 —— 这条能挡住所有"手滑压糊了"
 for i in range(a.page_count):
-    assert a[i].get_text() == b[i].get_text(), "第 %d 页文字变了" % (i+1)
-print("OK  %d 页，文字逐字节一致" % b.page_count)
+    def sig(d):
+        return sorted(
+            "%dx%d/%s" % (x["width"], x["height"],
+                          hashlib.md5(x["image"]).hexdigest()[:8])
+            for im in d[i].get_images(full=True)
+            for x in [d.extract_image(im[0])])
+    assert sig(a) == sig(b), "第 %d 页图片被改动了" % (i + 1)
+    assert a[i].get_text() == b[i].get_text(), "第 %d 页文字变了" % (i + 1)
+
+# 300dpi 渲染必须像素级一致
+for i in range(a.page_count):
+    def px(d):
+        m = d[i].get_pixmap(dpi=300, colorspace=fitz.csGRAY)
+        return np.frombuffer(m.samples, np.uint8).reshape(m.height, m.width).astype(np.int16)
+    assert np.abs(px(a) - px(b)).max() == 0, "第 %d 页渲染有差异" % (i + 1)
+
+print("OK  %d 页，图片/文字/渲染与源稿完全一致" % b.page_count)
 PY
 ```
 
-改完必须**用真 iPhone 扫码实测翻完 8 页**。电脑上用 Chrome 或 PyMuPDF 看不出这类问题。
+改完必须**用真 iPhone 扫码实测翻完 8 页**，重点看有插图的 p3 / p5 / p6。
+电脑上用 Chrome 或 PyMuPDF 看不出线性化类问题，缩略图也看不出插图糊没糊。
 
 ---
 
