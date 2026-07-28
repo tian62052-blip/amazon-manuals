@@ -20,9 +20,16 @@
 ├── _redirects              路径跳转规则（/b03/pdf -> 实际 PDF 文件）
 ├── _headers                缓存与 Content-Disposition 设置
 ├── archive/                历史版本存档，供售后/法律追溯
-├── tools/make_qr.py        二维码生成脚本
-└── .gitignore
+├── tools/
+│   └── make_print_artwork.py   二维码印刷稿生成脚本
+└── B03包装二维码_给印厂/    给印厂的交付件（脚本直接输出到这里）
+    ├── B03_二维码_印刷稿_25mm.pdf   正式印刷文件
+    ├── B03_二维码_印刷稿_25mm.svg   备用（AI / CorelDRAW）
+    └── 印厂须知_B03二维码.pdf       尺寸/颜色/工艺红线/打样要求
 ```
+
+`tools/` 、`archive/` 、`B03包装二维码_给印厂/` 均已在 `.assetsignore` 中排除，
+不会被当作网站资源对外提供。
 
 ---
 
@@ -70,12 +77,12 @@ curl -sI https://windin.pages.dev/b03/pdf
 ### 4. 生成二维码
 
 ```bash
-pip install segno
+pip install segno reportlab fonttools
 cd tools
-python make_qr.py https://windin.pages.dev/b03 --name b03
+python make_print_artwork.py
 ```
 
-把 `tools/out/b03_qr.svg` 交给印厂。**不要给 PNG。**
+产出直接覆盖 `B03包装二维码_给印厂/`，详见下方「印刷规范速查」。
 
 ### 5. 账号加固（免费方案的全部保障都在账号上）
 
@@ -243,15 +250,16 @@ pip install segno reportlab fonttools
 python tools/make_print_artwork.py
 ```
 
-`make_qr.py` 只出一个光秃秃的码，自测用；**交印厂用 `make_print_artwork.py`**，
-它出的是可以直接落到包装设计稿上的整块图（码 + 引导文字 + 白色底板）。
+出的是可以直接落到包装设计稿上的整块图（码 + 引导文字 + 白色底板）。
 
-产出在 `tools/out/`：
+**产出直接覆盖 `B03包装二维码_给印厂/`，全项目只此一份。**
+不要另存副本——两份文件迟早会不一致，而发错版本给印厂的代价是 2000 个盒子。
 
 | 文件 | 用途 |
 |---|---|
-| `B03_QR_25mm_print.pdf` | 交印厂的正式文件 |
-| `B03_QR_25mm_print.svg` | 备用，给用 AI / CorelDRAW 的设计师 |
+| `B03_二维码_印刷稿_25mm.pdf` | 交印厂的正式文件 |
+| `B03_二维码_印刷稿_25mm.svg` | 备用，给用 AI / CorelDRAW 的设计师 |
+| `印厂须知_B03二维码.pdf` | 一并发给印厂。一次性文档，无生成脚本 |
 
 规格：整块 25.00 × 29.21 mm（码区 25×25 mm，单模块 0.610 mm），
 100% 单黑 CMYK 0/0/0/100，无嵌入字体（已转曲）、无位图、无透明。

@@ -300,8 +300,12 @@ def main():
     ap.add_argument("--url", default=URL)
     ap.add_argument("--text", default="Scan for User Manual")
     ap.add_argument("--qr-mm", type=float, default=QR_MM)
-    ap.add_argument("--name", default="B03_QR_25mm_print")
-    ap.add_argument("--outdir", default="out")
+    ap.add_argument("--name", default="B03_二维码_印刷稿_25mm")
+    # 直接写进交付文件夹，不再单独留一份产物 —— 两份文件迟早会不一致，
+    # 而发错版本给印厂的代价是 2000 个盒子。
+    ap.add_argument("--outdir",
+                    default=os.path.join(os.path.dirname(os.path.dirname(
+                        os.path.abspath(__file__))), "B03包装二维码_给印厂"))
     a = ap.parse_args()
 
     r = build(a.url, a.text, a.qr_mm, a.outdir, a.name)
