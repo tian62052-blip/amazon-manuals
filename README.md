@@ -115,6 +115,61 @@ Listing 重新上传后 Amazon 会生成新的 `m.media-amazon.com` 地址，
 
 ---
 
+## PDF 处理规矩（换新说明书时必看）
+
+### 绝对不要用 Ghostscript 的 `-dFastWebView`
+
+2026-07-28 的线上事故就是它造成的：iPhone 扫码打开说明书，**第 3 页重复出现两次**。
+
+起因是压缩说明书时加了 `-dFastWebView=true`（线性化）。线性化会在文件里写一张
+hint 表，告诉阅读器"第 N 页在第几个字节"，供边下边看。**Ghostscript 生成的这张表
+是不合法的**，而 Safari / iOS PDFKit 会信这张表并照着跳字节位置，跳错就渲染出
+重复页；PyMuPDF、Chrome 不读这张表，所以本地怎么查都是好的——这是它极难被发现的原因。
+
+排查时的关键判据（当时全部成立）：
+
+| 检查项 | 结果 |
+|---|---|
+| 线上文件 vs 本地 sha256 | 完全一致（说明不是传错文件） |
+| 8 页文字 md5 | 各不相同（说明文件里没有重复页） |
+| `pikepdf.Pdf.check_linearization()` | **False ← 真凶** |
+| 同内容用 qpdf 重新线性化后再校验 | True |
+
+结论：**这个站点不需要线性化。** 服务端（Cloudflare Workers 静态资源）根本不支持
+Range 分段请求（无 `Accept-Ranges`，请求分段返回的是 200 + 整个文件），
+线性化在这里一点作用都没有，纯粹是白背一个会出错的包袱。
+
+### 换说明书时的标准动作
+
+```bash
+pip install pikepdf pymupdf
+
+python - <<'PY'
+import pikepdf, fitz
+SRC, DST = "新说明书.pdf", "B03-user-manual.pdf"
+
+# 去线性化 + 重整结构（不重新压缩图片，内容零改动）
+p = pikepdf.open(SRC)
+p.save(DST, linearize=False,
+       object_stream_mode=pikepdf.ObjectStreamMode.generate)
+p.close()
+
+# 必须过的三道检查
+f = pikepdf.open(DST)
+assert not f.is_linearized, "还带着线性化，Safari 会出错页"
+
+a, b = fitz.open(SRC), fitz.open(DST)
+assert a.page_count == b.page_count
+for i in range(a.page_count):
+    assert a[i].get_text() == b[i].get_text(), "第 %d 页文字变了" % (i+1)
+print("OK  %d 页，文字逐字节一致" % b.page_count)
+PY
+```
+
+改完必须**用真 iPhone 扫码实测翻完 8 页**。电脑上用 Chrome 或 PyMuPDF 看不出这类问题。
+
+---
+
 ## 将来升级到自有域名（第二批包装时）
 
 **零返工，且不影响已售出的 2000 个盒子：**
@@ -142,10 +197,36 @@ Listing 重新上传后 Amazon 会生成新的 `m.media-amazon.com` 地址，
 | 静空白区 | 四周至少 4 个模块，不能被边框/图案压到 |
 | 颜色 | 单色纯黑 + 白底。不反白、不渐变、不四色套印 |
 | Logo | 中心遮挡 ≤15%，建议不放 |
-| 配套文字 | 码下方印可读地址 + `Scan for User Manual` |
+| 配套文字 | 码下方印 `Scan for User Manual` |
 
 **开印前必须**：拿实际材质、实际尺寸的打样件，用 3–5 部不同手机（含 Redmi
 等印度主力低端机）在弱光下实测扫码。电脑屏幕上扫图片不作数。
+
+### 生成给印厂的正式文件
+
+```bash
+pip install segno reportlab fonttools
+python tools/make_print_artwork.py
+```
+
+`make_qr.py` 只出一个光秃秃的码，自测用；**交印厂用 `make_print_artwork.py`**，
+它出的是可以直接落到包装设计稿上的整块图（码 + 引导文字 + 白色底板）。
+
+产出在 `tools/out/`：
+
+| 文件 | 用途 |
+|---|---|
+| `B03_QR_25mm_print.pdf` | 交印厂的正式文件 |
+| `B03_QR_25mm_print.svg` | 备用，给用 AI / CorelDRAW 的设计师 |
+
+规格：整块 25.00 × 29.21 mm（码区 25×25 mm，单模块 0.610 mm），
+100% 单黑 CMYK 0/0/0/100，无嵌入字体（已转曲）、无位图、无透明。
+
+改文案或改尺寸：`--text "..."` / `--qr-mm 28`。文字会自动按宽度缩放，
+缩到 5.5pt 以下会直接报错而不是硬印上去——那个尺寸货架上看不清。
+
+配套的《印厂须知》（尺寸、颜色红线、印后工艺禁忌、打样要求）在
+`桌面/B03包装二维码_给印厂/`，和印刷稿一起发给印厂。
 
 ---
 
