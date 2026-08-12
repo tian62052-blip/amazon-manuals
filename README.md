@@ -3,8 +3,15 @@
 包装盒二维码指向的站点。由 Cloudflare **Workers 静态资源**部署（见 `wrangler.jsonc`），
 **当前使用免费的 `*.workers.dev` 域名**。
 
-**核心约定：二维码只编码 `https://windin.tian62052.workers.dev/b03` 这一个地址，永远不变。**
+**核心约定：每个型号的二维码只编码一个地址，永远不变。**
 背后指向什么、内容是什么，全部可以随时改。
+
+| 型号 | 二维码编码的地址 | 说明书文件 | 状态 |
+|---|---|---|---|
+| B03 屏幕点击器 | `https://windin.tian62052.workers.dev/b03` | `B03-user-manual.pdf`（8 页） | 已印 2000 个包装 |
+| G30 一机多头点击器 | `https://windin.tian62052.workers.dev/g30` | `G30-user-manual.pdf`（13 页） | 未开印 |
+
+新增型号走的是同一个 Worker、同一个域名，只加路径，**不需要新建项目、不影响已印出的 B03 二维码**。
 
 > ⚠️ 2026-08-07 更正：本文档原先通篇写的是 `windin.pages.dev`，那个地址**不存在**
 > （实测 SSL 握手直接失败）。真正在跑的、也是已印在 2000 个盒子上的地址是
@@ -22,27 +29,46 @@
 
 ```
 /
-├── B03-user-manual.pdf     当前生效的说明书（文件名不要改）
+├── B03-user-manual.pdf     B03 当前生效的说明书（文件名不要改）
+├── G30-user-manual.pdf     G30 当前生效的说明书（文件名不要改）
 ├── index.html              根目录的型号索引页
-├── b03/index.html          B03 落地页 = 二维码扫出来的页面
-├── _redirects              路径跳转规则（/b03/pdf -> 实际 PDF 文件）
+├── b03/index.html          B03 落地页 = B03 二维码扫出来的页面
+├── g30/index.html          G30 落地页 = G30 二维码扫出来的页面
+├── _redirects              路径跳转规则（/b03/pdf、/g30/pdf -> 实际 PDF 文件）
 ├── _headers                缓存与 Content-Disposition 设置
 ├── archive/                历史版本存档，供售后/法律追溯
 ├── tools/
-│   ├── make_print_artwork.py   盒外二维码印刷稿生成脚本
-│   └── make_insert_card.py     盒内售后卡片生成脚本
+│   ├── make_print_artwork.py   盒外二维码印刷稿生成脚本（型号靠命令行参数区分）
+│   └── make_insert_card.py     盒内售后卡片生成脚本（目前只做了 B03）
 ├── B03包装二维码_给印厂/    盒外二维码交付件（脚本直接输出到这里）
 │   ├── B03_二维码_印刷稿_25mm.pdf   正式印刷文件
 │   ├── B03_二维码_印刷稿_25mm.svg   备用（AI / CorelDRAW）
 │   └── 印厂须知_B03二维码.pdf       尺寸/颜色/工艺红线/打样要求
+├── G30包装二维码_给印厂/    同上，G30 的
+│   ├── G30_二维码_印刷稿_25mm.pdf
+│   └── G30_二维码_印刷稿_25mm.svg
 └── B03售后卡片_给印厂/      盒内售后卡片交付件（脚本直接输出到这里）
     ├── B03_售后卡片_85x54.pdf       正式印刷文件（P1 正面 / P2 背面）
     ├── B03_售后卡片_尺寸标注.pdf    A4 尺寸标注图，和印刷文件一起发给印厂
     └── B03_售后卡片_85x54_预览.png  屏幕预览，不用于印刷
 ```
 
-`tools/` 、`archive/` 、`B03包装二维码_给印厂/` 、`B03售后卡片_给印厂/`
-均已在 `.assetsignore` 中排除，不会被当作网站资源对外提供。
+`tools/` 、`archive/` 、`B03包装二维码_给印厂/` 、`G30包装二维码_给印厂/` 、
+`B03售后卡片_给印厂/` 均已在 `.assetsignore` 中排除，不会被当作网站资源对外提供。
+
+### 新增一个型号要改的地方（一共 6 处）
+
+以 G30 为例，照抄即可：
+
+1. 根目录放 `G30-user-manual.pdf`（按下方「PDF 处理规矩」无损处理过的）
+2. 新建 `g30/index.html`，复制 `b03/index.html` 改型号名、页数、PDF 路径
+3. `_redirects` 加 `/g30/pdf`、`/g30/manual.pdf` 和三条大写路径
+4. `_headers` 加 `/g30/*` 的 10 分钟缓存
+5. 根 `index.html` 型号列表加一行
+6. `.assetsignore` 排除 `G30包装二维码_给印厂`
+
+改完本地跑一遍 `npx wrangler dev`，看它输出的「Parsed N valid redirect rules」
+数量对不对（每个型号 5 条）。
 
 ---
 
@@ -107,6 +133,8 @@ python make_print_artwork.py
 
 ## 日常更新说明书（3 步）
 
+下面以 B03 为例，G30 把 `b03`/`B03` 换成 `g30`/`G30` 即可。
+
 1. 把旧版备份进 `archive/`，例如 `archive/B03-user-manual-v1.pdf`
 2. 用新 PDF 覆盖根目录的 `B03-user-manual.pdf`（**文件名保持不变**）
 3. `git add -A && git commit -m "update B03 manual" && git push`
@@ -114,6 +142,9 @@ python make_print_artwork.py
 Cloudflare Pages 自动重新部署，约 1 分钟后全球生效。**二维码不动。**
 
 验证：`curl -sI https://windin.tian62052.workers.dev/b03/pdf | grep -i etag`
+
+换页数不同的新版时，记得同步改落地页上的「N pages」（`b03/index.html`
+里的 `.sub` 那一行）。
 
 ### ⚠️ 第 4 步：同步更新 Listing 上的 PDF
 
@@ -260,12 +291,23 @@ PY
 
 ```bash
 pip install segno reportlab fonttools
+
+# B03（默认参数就是 B03）
 python tools/make_print_artwork.py
+
+# G30
+python tools/make_print_artwork.py \
+  --url "https://windin.tian62052.workers.dev/g30" \
+  --name "G30_二维码_印刷稿_25mm" \
+  --title "G30 Multi-Head Screen Tapper - Packaging QR Artwork" \
+  --outdir "G30包装二维码_给印厂"
 ```
 
 出的是可以直接落到包装设计稿上的整块图（码 + 引导文字 + 白色底板）。
+两个型号的 URL 长度一样，所以版本、模块数、单模块尺寸完全相同（version 4 /
+41×41 / 0.610 mm），印刷规格可以直接套用同一份《印厂须知》。
 
-**产出直接覆盖 `B03包装二维码_给印厂/`，全项目只此一份。**
+**产出直接覆盖对应的 `<型号>包装二维码_给印厂/`，每个型号只此一份。**
 不要另存副本——两份文件迟早会不一致，而发错版本给印厂的代价是 2000 个盒子。
 
 | 文件 | 用途 |

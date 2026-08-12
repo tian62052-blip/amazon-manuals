@@ -140,7 +140,7 @@ class GlyphOutliner:
 
 
 # ---------------------------------------------------------------------
-def build(url, text, qr_mm, outdir, name):
+def build(url, text, qr_mm, outdir, name, title="B03 Auto Clicker - Packaging QR Artwork"):
     qr = segno.make(url, error='q', micro=False)
     matrix = list(qr.matrix_iter(scale=1, border=4))
     n = len(matrix)                       # 含静空白区的模块数
@@ -170,7 +170,7 @@ def build(url, text, qr_mm, outdir, name):
     # --- 画 PDF ------------------------------------------------------
     W, H = block_w_mm * mm, block_h_mm * mm
     c = rl_canvas.Canvas(pdf_path, pagesize=(W, H))
-    c.setTitle("B03 Auto Clicker - Packaging QR Artwork")
+    c.setTitle(title)
     c.setSubject(url)                     # 印厂在文件属性里能核对内容
     c.setCreator("WINDIN")
 
@@ -301,6 +301,8 @@ def main():
     ap.add_argument("--text", default="Scan for User Manual")
     ap.add_argument("--qr-mm", type=float, default=QR_MM)
     ap.add_argument("--name", default="B03_二维码_印刷稿_25mm")
+    # 只影响 PDF 文件属性里的标题，印厂靠它核对拿到的是哪个型号的稿。
+    ap.add_argument("--title", default="B03 Auto Clicker - Packaging QR Artwork")
     # 直接写进交付文件夹，不再单独留一份产物 —— 两份文件迟早会不一致，
     # 而发错版本给印厂的代价是 2000 个盒子。
     ap.add_argument("--outdir",
@@ -308,7 +310,7 @@ def main():
                         os.path.abspath(__file__))), "B03包装二维码_给印厂"))
     a = ap.parse_args()
 
-    r = build(a.url, a.text, a.qr_mm, a.outdir, a.name)
+    r = build(a.url, a.text, a.qr_mm, a.outdir, a.name, a.title)
 
     print()
     print("  内容            : " + a.url)

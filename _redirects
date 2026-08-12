@@ -19,5 +19,14 @@
 # 不支持 404（Pages 支持）。屏蔽内部文档改用 .assetsignore 实现
 # ——那些文件根本不会被上传，比返回 404 更彻底。
 
+# --- G30（一机多头点击器）-------------------------------------
+# 二维码编码 https://windin.tian62052.workers.dev/g30
+/g30/pdf            /G30-user-manual.pdf        302
+/g30/manual.pdf     /G30-user-manual.pdf        302
+
+/G30                /g30/                       302
+/G30/               /g30/                       302
+/G30/PDF            /G30-user-manual.pdf        302
+
 # --- 未来新增型号，照抄上面的模式即可 --------------------------
 # /b04/pdf          /B04-user-manual.pdf        302

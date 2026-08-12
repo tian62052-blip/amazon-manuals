@@ -10,6 +10,9 @@
 /b03/*
   Cache-Control: public, max-age=600
 
+/g30/*
+  Cache-Control: public, max-age=600
+
 # PDF：这是关键的两行
 #   Content-Disposition: inline  -> 手机浏览器直接打开，不弹"下载"框
 #   max-age=3600                 -> 换了说明书最多 1 小时全网生效
